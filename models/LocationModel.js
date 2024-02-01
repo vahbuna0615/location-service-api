@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const locationSchema = mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: true,
+    ref: 'User'
+  },
   latitude: {
     type: Number,
     required: [true, 'Add a value between -90 and 90'],

@@ -1,79 +1,92 @@
 const asyncHandler = require('express-async-handler');
 const Location = require('../models/LocationModel');
+const HaversineDistance = require('../utils/HaversineDistance');
+const validateCoordinates = require('../utils/validateCoordinates');
 
 //@desc Accepts POST requests with JSON data containing GPS coordinates
 //@route POST /api/location
 //@access Private
 
 const createCoords = asyncHandler (async(req, res) => {
-  const latitude = req.body.latitude;
-  const longitude = req.body.longitude;
-  if (( latitude < -90 || latitude > 90)){
-    res.status(400);
-    throw new Error('Latitudinal value outside of range [-90, 90]');
-  }
-  if (longitude < -180 || longitude > 180 ){
-    res.status(400);
-    throw new Error('Longitudinal value outside of range [-180, 180]');
-  }
+
+  const { latitude, longitude } = req.body;
+
+  validateCoordinates(latitude, longitude, res);
+  
   const location = await Location.create({
-    user: req.body.user,
-    latitude: req.body.latitude,
-    longitude: req.body.longitude
+    user: req.user.id,
+    latitude: latitude,
+    longitude: longitude
   });
 
-  res.status(200).json(location);
+  res.status(201).json(location);
 });
 
 //@desc Computes the distance between 2 sets of coordinates using Haversine formula
 //@route GET /api/distance
-//@access Private
+//@access Public
 
 const getDistance = asyncHandler(async(req, res) => {
+  
+  const { lat1, lon1, lat2, lon2, isMiles } = req.body;
+
+  validateCoordinates(lat1, lon1, res);
+  validateCoordinates(lat2, lon2, res);
+
   const set1 = {
-    latitude: req.body.lat1,
-    longitude: req.body.lon1
+    latitude: lat1,
+    longitude: lon1
   };
 
   const set2 = {
-    latitude: req.body.lat2,
-    longitude: req.body.lon2
+    latitude: lat2,
+    longitude: lon2
   }
 
-  const isMiles = req.body.convMiles;
+  const distance = HaversineDistance(set1, set2, isMiles);
 
-  const haversineDistance = (coords1, coords2, isMiles) => {
-    const toRad = (x) => {
-      return x * Math.PI / 180;
-    }
-
-    const R = 6371; //km
-
-    const lat1 = coords1.latitude;
-    const lon1 = coords1.longitude;
-
-    const lat2 = coords2.latitude;
-    const lon2 = coords2.longitude;
-
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    let d = R * c;
-
-    if (isMiles){
-      d = d / 1.60934; //distance in miles
-    }
-
-    return d; // distance in km
-  }
-
-  const distance = haversineDistance(set1, set2, isMiles);
-
-  res.json({
+  res.status(200).json({
     result: distance
   });
 });
 
-module.exports = { createCoords, getDistance };
+//@desc Takes a set of coordinates and returns the closest recorded location from the database.
+//@route GET /api/closest
+//@access Private
+
+const getClosest = async(req, res) => {
+
+  const { latitude, longitude, isMiles } = req.body;
+
+  validateCoordinates(latitude , longitude , res);
+
+  const givenLocation = {
+    latitude: latitude,
+    longitude: longitude
+  };
+
+  const userLocations = await Location.find({ user: req.user.id }).select('latitude longitude');
+
+  if (!userLocations){
+    res.status(404);
+    throw new Error('No previous location records found');
+  }
+
+  let closestLocId, closestDistance = Infinity;
+
+  userLocations.map((location) => {
+    let distance = HaversineDistance(givenLocation, { latitude: location.latitude, longitude: location.longitude }, isMiles);
+    if (distance < closestDistance){
+      closestDistance = distance, closestLocId = location._id; 
+    }
+  });
+
+  const closestLocation = await Location.findOne({_id: closestLocId});
+
+  res.status(200).json({
+    location: closestLocation,
+    distance: closestDistance
+  });
+}
+
+module.exports = { createCoords, getDistance, getClosest };

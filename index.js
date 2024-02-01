@@ -3,6 +3,9 @@ const cors = require('cors');
 require('dotenv').config();
 const connectDB = require('./config/db');
 const locationRouter = require('./routes/locationRouter');
+const userRouter = require('./routes/userRouter');
+const { errorHandler } = require('./middleware/errorMiddleware');
+const PORT = process.env.PORT;
 
 connectDB();
 
@@ -16,8 +19,11 @@ app.get('/', (req, res) => {
   res.send('Server is running');
 });
 
-app.use('/api', locationRouter);
+app.use('/', locationRouter);
+app.use('/users', userRouter);
 
-app.listen(4040, () => {
-  console.log(`Listening on port 4040`)
+app.use(errorHandler);
+
+app.listen(PORT, () => {
+  console.log(`Listening on port ${PORT}`);
 });
