@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const asyncHandler = require('express-async-handler');
 const User = require('../models/UserModel');
+const validateEmail = require('../utils/validateEmail');
 
 // Generate JWT
 const generateToken = (id) => {
@@ -16,6 +17,7 @@ const generateToken = (id) => {
 
 const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
+  let user;
 
   if(!name || !email || !password) {
     res.status(400);
@@ -35,13 +37,15 @@ const registerUser = asyncHandler(async (req, res) => {
   const hashedPassword = await bcrypt.hash(password, salt);
 
   //Create user
-  const user = await User.create({
-    name,
-    email,
-    password: hashedPassword
-  });
+  if (validateEmail(email)){
+    user = await User.create({
+      name,
+      email,
+      password: hashedPassword
+    });
+  }
 
-  if(user){
+  if(user && validateEmail(email)){
     res.status(201).json({
       _id: user.id,
       name: user.name,
@@ -83,7 +87,7 @@ const loginUser = asyncHandler(async (req, res) => {
 //@access Private
 
 const getMe = asyncHandler(async (req, res) => {
-  res.status(200).json(req.user)
+  res.status(200).json(req.user);
 });
 
 module.exports = {

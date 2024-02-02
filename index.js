@@ -24,6 +24,11 @@ app.use('/users', userRouter);
 
 app.use(errorHandler);
 
+
 app.listen(PORT, () => {
-  console.log(`Listening on port ${PORT}`);
+  //console.log(`Listening on port ${PORT}`);
 });
+
+module.exports = app;
+
+
